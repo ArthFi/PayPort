@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0e17;
+  --bg-card: #111827;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: #f1f5f9;
+}
+
+/* Dark scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0a0e17; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* Receipt print styles */
+@media print {
+  body > * { visibility: hidden; }
+  .receipt-print, .receipt-print * { visibility: visible; }
+  .receipt-print {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    background: white;
+    color: black;
+    padding: 40px;
+  }
+}
+
+/* Modal fade-in */
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.modal-enter { animation: fadeInScale 0.15s ease-out; }
