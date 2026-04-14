@@ -18,86 +18,84 @@ export default function ReceiptModal({ order, onClose }: { order: Order | null; 
     })
   }
 
-  const explorerUrl = order.tx_hash
-    ? `https://testnet-explorer.hsk.xyz/tx/${order.tx_hash}`
+  const txHash = order.tx_hash || null
+  const settlementType = order.settlement_type || 'unknown'
+  const isOnChainTxHash = Boolean(txHash && /^0x[a-fA-F0-9]{64}$/.test(txHash))
+  const explorerUrl = isOnChainTxHash && txHash
+    ? `https://testnet-explorer.hsk.xyz/tx/${txHash}`
     : null
+
+  function row(label: string, value: string) {
+    return (
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-ink-muted">{label}</span>
+        <span className="text-xs font-mono text-ink-secondary max-w-[60%] text-right truncate" title={value}>
+          {value}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-surface-base/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="receipt-print bg-[#111827] border border-[#1f2937] rounded-2xl p-6 max-w-md w-full modal-enter"
+        className="receipt-print bg-surface-card border border-surface-border rounded-2xl max-w-sm w-full mx-4 modal-enter shadow-2xl shadow-black/50"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-[#1f2937]">
-          <div className="flex items-center gap-2">
-            <span className="text-[#1A56FF] text-lg">⬡</span>
-            <span className="text-sm font-semibold text-white">PayPort Receipt</span>
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-surface-border">
+          <div>
+            <p className="text-xs text-ink-muted">Settlement Receipt</p>
+            <p className="text-sm font-medium text-ink-primary mt-0.5">PayPort</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 bg-[#1A56FF]/10 text-[#1A56FF] border border-[#1A56FF]/20 rounded text-xs font-mono">HP2</span>
-            <span className="px-2 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded text-xs">HashKey Chain</span>
-          </div>
+          <button onClick={onClose} className="text-ink-muted hover:text-ink-primary transition-colors p-1">
+            ✕
+          </button>
         </div>
 
-        <div className="text-center py-4">
-          <p className="text-4xl font-mono font-bold text-white">{order.amount}</p>
-          <p className="text-lg text-[#94a3b8] font-mono">{order.token}</p>
+        <div className="px-6 py-8 text-center border-b border-surface-border">
+          <p className="text-4xl font-mono font-semibold text-ink-primary">{order.amount}</p>
+          <p className="text-sm text-ink-muted font-mono mt-1">{order.token}</p>
+          <StatusBadge status={order.status} className="mt-3" />
         </div>
 
-        <div className="flex justify-end mb-4">
-          <button onClick={onClose} className="text-[#64748b] hover:text-white transition-colors text-xl">×</button>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-start justify-between py-2 border-b border-[#1f2937]">
-            <span className="text-xs text-[#64748b] uppercase tracking-wider">Status</span>
-            <StatusBadge status={order.status} />
-          </div>
-
-          <div className="flex items-start justify-between py-2 border-b border-[#1f2937]">
-            <span className="text-xs text-[#64748b] uppercase tracking-wider">Order ID</span>
-            <span className="font-mono text-xs text-[#f1f5f9] text-right max-w-[60%] truncate">{order.id}</span>
-          </div>
-
-          <div className="flex items-start justify-between py-2 border-b border-[#1f2937]">
-            <span className="text-xs text-[#64748b] uppercase tracking-wider">Description</span>
-            <span className="text-sm text-[#f1f5f9] text-right max-w-[60%]">{order.description || '—'}</span>
-          </div>
-
-          <div className="flex items-start justify-between py-2 border-b border-[#1f2937]">
-            <span className="text-xs text-[#64748b] uppercase tracking-wider">Created</span>
-            <span className="text-xs font-mono text-[#f1f5f9]">{formatDate(order.created_at)}</span>
-          </div>
-
-          <div className="flex items-start justify-between py-2 border-b border-[#1f2937]">
-            <span className="text-xs text-[#64748b] uppercase tracking-wider">Settled</span>
-            <span className="text-xs font-mono text-[#f1f5f9]">{formatDate(order.settled_at)}</span>
-          </div>
-
-          {order.tx_hash && explorerUrl && (
-            <div className="flex items-start justify-between py-2 border-b border-[#1f2937]">
-              <span className="text-xs text-[#64748b] uppercase tracking-wider">TX Hash</span>
+        <div className="px-6 py-4 space-y-3">
+          {row('Order ID', order.id)}
+          {row('Description', order.description || '—')}
+          {row('Created', formatDate(order.created_at))}
+          {row('Settled', formatDate(order.settled_at))}
+          {row('Settlement Type', settlementType)}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-ink-muted">
+              {settlementType === 'simulated' ? 'Settlement Ref' : 'Transaction'}
+            </span>
+            {(settlementType === 'real' || settlementType === 'unknown') && explorerUrl ? (
               <a
                 href={explorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#1A56FF] text-xs font-mono hover:underline max-w-[60%] truncate"
+                className="text-xs font-mono text-brand hover:text-brand/80 transition-colors max-w-[60%] truncate"
               >
-                {order.tx_hash.slice(0, 20)}...
+                {txHash?.slice(0, 20)}...
               </a>
-            </div>
-          )}
-        </div>
+            ) : settlementType === 'simulated' && txHash ? (
+              <span className="text-xs font-mono text-ink-secondary max-w-[60%] truncate" title={txHash}>
+                {txHash}
+              </span>
+            ) : (
+              <span className="text-xs font-mono text-ink-muted">—</span>
+            )}
+          </div>
 
-        <button
-          onClick={handlePrint}
-          className="mt-4 w-full py-2 bg-[#1f2937] text-[#94a3b8] border border-[#1f2937] rounded-lg hover:bg-[#1e293b] transition-colors text-sm"
-        >
-          Print Receipt
-        </button>
+          <button
+            onClick={handlePrint}
+            className="w-full mt-2 text-xs px-3 py-2 rounded-lg font-medium transition-colors bg-transparent border border-surface-border text-ink-secondary hover:border-brand/40 hover:text-ink-primary"
+          >
+            Print Receipt
+          </button>
+        </div>
       </div>
     </div>
   )

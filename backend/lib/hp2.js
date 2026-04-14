@@ -5,7 +5,7 @@ const constants = require('../constants');
 const { sha256hex } = require('./mandate');
 
 
-async function mockCreateSinglePayment({ cartMandate, cartId }) {
+async function mockCreateSinglePayment({ cartMandate, cartId, appKey }) {
   const amount = cartMandate.contents.payment_request.details.total.amount.value;
   const token = cartMandate.contents.payment_request.method_data[0].data.coin;
   const paymentRequestId = cartMandate.contents.payment_request.details.id;
@@ -13,7 +13,8 @@ async function mockCreateSinglePayment({ cartMandate, cartId }) {
 
   await new Promise((resolve) => setTimeout(resolve, 150));
 
-  const paymentUrl = `http://localhost:3000/mock-payment?id=${cartId}&amount=${encodeURIComponent(amount)}&token=${token}`;
+  const appKeyQuery = appKey ? `&appKey=${encodeURIComponent(appKey)}` : '';
+  const paymentUrl = `http://localhost:3000/mock-payment?id=${cartId}&amount=${encodeURIComponent(amount)}&token=${token}${appKeyQuery}`;
 
   return {
     paymentRequestId,
@@ -23,7 +24,7 @@ async function mockCreateSinglePayment({ cartMandate, cartId }) {
 }
 
 async function mockGetPaymentStatus(_paymentRequestId) {
-  return { status: 'pending', txHash: null, amount: null, token: null };
+  return { status: 'pending', txHash: null, amount: null, token: null, failureReason: null, raw: null };
 }
 
 
@@ -127,6 +128,14 @@ async function realGetPaymentStatus(paymentRequestId) {
     txHash: payload.tx_signature || payload.tx_hash || payload.txHash || null,
     amount: payload.amount || null,
     token: payload.token || null,
+    failureReason: payload.failure_reason
+      || payload.fail_reason
+      || payload.status_reason
+      || payload.reason
+      || payload.error_message
+      || payload.error
+      || null,
+    raw: payload,
   };
 }
 

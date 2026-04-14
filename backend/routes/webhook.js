@@ -1,6 +1,7 @@
 
 const { Router } = require('express');
 const crypto = require('crypto');
+const { requireAppKey } = require('./merchant');
 const {
   getOrderByPaymentRequestId,
   getOrderByCartMandateId,
@@ -58,15 +59,16 @@ function verifyWebhookSignature(req, rawBody) {
   return { valid: true };
 }
 
-function randomTxHash() {
-  return `0x${crypto.randomBytes(32).toString('hex')}`;
+function randomSimulatedRef() {
+  return `sim_${crypto.randomBytes(8).toString('hex')}`;
 }
 
-function settleOrder(order, paymentRequestId, txHash, message) {
+function settleOrder(order, paymentRequestId, txHash, message, settlementType = 'unknown') {
   const now = new Date().toISOString();
   updateOrderStatus(paymentRequestId, 'settled', {
     txHash,
     settledAt: now,
+    settlementType,
   });
 
   logEvent(order.id, order.merchant_id, 'payment.settled', message);
@@ -76,6 +78,7 @@ function settleOrder(order, paymentRequestId, txHash, message) {
     orderId: order.id,
     status: 'settled',
     txHash,
+    settlementType,
     settledAt: now,
     timestamp: now,
   });
@@ -107,10 +110,18 @@ router.post('/', (req, res) => {
       status,
       payment_request_id,
       tx_signature,
+      tx_hash,
+      txHash: txHashCamel,
       amount,
       token,
       event_type,
       cart_mandate_id,
+      failure_reason,
+      fail_reason,
+      status_reason,
+      reason,
+      error_message,
+      error,
     } = req.body;
 
     console.log(`[Webhook] Received: status=${status} payment_request_id=${payment_request_id}`);
@@ -122,18 +133,58 @@ router.post('/', (req, res) => {
     }
 
     if (status === 'payment-successful') {
-      const txHash = tx_signature || randomTxHash();
-      settleOrder(order, payment_request_id, txHash, `Payment settled: ${order.amount} ${order.token}`);
+      // Only persist chain tx hash when HP2 provides one.
+      const txHash = tx_signature || tx_hash || txHashCamel || null;
+      settleOrder(order, payment_request_id, txHash, `Payment settled: ${order.amount} ${order.token}`, 'real');
+    } else if (status === 'payment-included') {
+      const now = new Date().toISOString();
+      const txHash = tx_signature || tx_hash || txHashCamel || null;
+
+      updateOrderStatus(payment_request_id, 'confirmed', {
+        txHash,
+      });
+
+      const includedMsg = txHash
+        ? `Payment included in block: ${txHash}`
+        : 'Payment included in block, awaiting confirmation';
+
+      logEvent(order.id, order.merchant_id, 'payment.confirmed', includedMsg);
+
+      broadcastToMerchant(order.merchant_id, {
+        type: 'order.updated',
+        orderId: order.id,
+        status: 'confirmed',
+        txHash,
+        settlementType: 'real',
+        timestamp: now,
+      });
+
+      broadcastToMerchant(order.merchant_id, {
+        type: 'event.log',
+        orderId: order.id,
+        eventType: 'payment.confirmed',
+        message: includedMsg,
+        timestamp: now,
+      });
     } else if (
       status === 'payment-required'
       || status === 'payment-submitted'
       || status === 'payment-verified'
       || status === 'payment-processing'
+      || status === 'payment-safe'
     ) {
       const now = new Date().toISOString();
       const infoMsg = `Webhook status update received: ${status}`;
 
       logEvent(order.id, order.merchant_id, 'payment.info', infoMsg);
+
+      broadcastToMerchant(order.merchant_id, {
+        type: 'order.updated',
+        orderId: order.id,
+        status: order.status === 'initiated' ? 'pending' : order.status,
+        timestamp: now,
+      });
+
       broadcastToMerchant(order.merchant_id, {
         type: 'event.log',
         orderId: order.id,
@@ -141,24 +192,14 @@ router.post('/', (req, res) => {
         message: infoMsg,
         timestamp: now,
       });
-    } else if (status === 'payment-included') {
-      const now = new Date().toISOString();
-      const includedMsg = 'Payment included in block, awaiting confirmation';
-
-      logEvent(order.id, order.merchant_id, 'payment.included', includedMsg);
-
-      broadcastToMerchant(order.merchant_id, {
-        type: 'event.log',
-        orderId: order.id,
-        eventType: 'payment.included',
-        message: includedMsg,
-        timestamp: now,
-      });
     } else if (status === 'payment-failed') {
       const now = new Date().toISOString();
       updateOrderStatus(payment_request_id, 'failed', {});
 
-      logEvent(order.id, order.merchant_id, 'payment.failed', 'Payment failed');
+      const failReason = failure_reason || fail_reason || status_reason || reason || error_message || error || 'Payment failed';
+      const failMsg = `Payment failed: ${failReason}`;
+
+      logEvent(order.id, order.merchant_id, 'payment.failed', failMsg);
 
       broadcastToMerchant(order.merchant_id, {
         type: 'order.updated',
@@ -171,7 +212,7 @@ router.post('/', (req, res) => {
         type: 'event.log',
         orderId: order.id,
         eventType: 'payment.failed',
-        message: 'Payment failed',
+        message: failMsg,
         timestamp: now,
       });
     } else {
@@ -197,12 +238,13 @@ router.post('/', (req, res) => {
 });
 
 
-router.post('/simulate/:paymentRequestId', (req, res) => {
+router.post('/simulate/:paymentRequestId', requireAppKey, async (req, res) => {
   try {
     if (constants.ENABLE_SIMULATE_ENDPOINT !== 'true') {
       return res.status(403).json({
         ok: false,
-        error: 'Simulate endpoint is disabled in current mode',
+        error: 'SIMULATE_DISABLED',
+        message: 'Simulation endpoint is disabled in this mode. Set ENABLE_SIMULATE_ENDPOINT=true to enable.',
       });
     }
 
@@ -218,15 +260,28 @@ router.post('/simulate/:paymentRequestId', (req, res) => {
     }
 
     if (!order) {
-      return res.status(404).json({ ok: false, error: 'Order not found' });
+      return res.status(404).json({ ok: false, error: 'ORDER_NOT_FOUND' });
     }
 
-    const txHash = randomTxHash();
+    if (order.merchant_id !== req.merchant.id) {
+      return res.status(403).json({ ok: false, error: 'ORDER_NOT_YOURS' });
+    }
+
+    if (!['initiated', 'pending'].includes(order.status)) {
+      return res.status(409).json({
+        ok: false,
+        error: 'INVALID_STATUS_TRANSITION',
+        message: `Cannot simulate settlement for order in status: ${order.status}`,
+      });
+    }
+
+    const txHash = randomSimulatedRef();
     settleOrder(
       order,
       lookupPaymentRequestId,
       txHash,
-      `Payment settled (simulated): ${order.amount} ${order.token}`
+      `Payment settled (simulated): ${order.amount} ${order.token}`,
+      'simulated'
     );
 
     return res.status(200).json({

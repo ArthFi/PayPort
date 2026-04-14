@@ -23,12 +23,15 @@ export default function DashboardPage() {
   const router = useRouter()
   const [appKey, setAppKey] = useState<string | null>(null)
   const [walletAddress, setWalletAddress] = useState<string>('')
+  const [activeDemoKey, setActiveDemoKey] = useState<string>('')
+  const [switchingKey, setSwitchingKey] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
   const [events, setEvents] = useState<PaymentEvent[]>([])
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [hp2Mode, setHp2Mode] = useState<'HP2 MOCK' | 'HP2 SIM' | 'HP2 LIVE'>('HP2 MOCK')
-  const [simulateEnabled, setSimulateEnabled] = useState(true)
+  const [simulateEnabled, setSimulateEnabled] = useState(false)
+  const [liveMode, setLiveMode] = useState(false)
 
   useEffect(() => {
     const key = localStorage.getItem('payport_app_key')
@@ -67,35 +70,25 @@ export default function DashboardPage() {
         const health = await checkHealth()
         if (!active || !health) return
 
-        setSimulateEnabled(String(health.simulateEnabled) === 'true')
-
-        const mode = String(health.mode || '').toLowerCase()
-        if (mode === 'live') {
-          setHp2Mode('HP2 LIVE')
-          return
-        }
-        if (mode === 'sim') {
-          setHp2Mode('HP2 SIM')
-          return
-        }
-        if (mode === 'mock') {
-          setHp2Mode('HP2 MOCK')
-          return
-        }
-
         const mockMode = String(health.mockMode) === 'true'
+        const isLiveMode = String(health.liveMode) === 'true'
+        const isSimulateEnabled = String(health.simulateEnabled) === 'true'
+        const demoKey = String(health.demoKey || '')
+        setLiveMode(isLiveMode)
+        setSimulateEnabled(isSimulateEnabled)
+        setActiveDemoKey(demoKey)
+
         if (mockMode) {
           setHp2Mode('HP2 MOCK')
           return
         }
 
-        const base = String(health.hp2BaseUrl || '').toLowerCase()
-        const isSim = base.includes('localhost') || base.includes('127.0.0.1') || base.includes(':3002')
-        setHp2Mode(isSim ? 'HP2 SIM' : 'HP2 LIVE')
+        setHp2Mode(isLiveMode ? 'HP2 LIVE' : 'HP2 SIM')
       } catch {
         if (active) {
           setHp2Mode('HP2 MOCK')
-          setSimulateEnabled(true)
+          setLiveMode(false)
+          setSimulateEnabled(false)
         }
       }
     }
@@ -110,28 +103,65 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!lastEvent) return
-    if (lastEvent.type === 'order.created') {
-      fetchOrders()
-    } else if (lastEvent.type === 'order.updated') {
-      setOrders(prev => prev.map(o =>
-        o.id === lastEvent.orderId
-          ? {
-              ...o,
-              status: lastEvent.status || o.status,
-              tx_hash: lastEvent.txHash ?? o.tx_hash,
-              settled_at: lastEvent.settledAt ?? o.settled_at,
-            }
-          : o
-      ))
-    }
+    if (lastEvent.type === 'connected') return
+    // Re-fetch on every order/event update to keep provider-reconciled status current.
+    fetchOrders()
   }, [lastEvent, fetchOrders])
 
+  useEffect(() => {
+    if (!appKey) return
+    // Fallback sync for cases where provider progression doesn't emit terminal events immediately.
+    const timer = setInterval(() => {
+      fetchOrders()
+    }, 12000)
+    return () => clearInterval(timer)
+  }, [appKey, fetchOrders])
+
   async function handleSimulate(paymentRequestId: string) {
+    if (!appKey) return
+    if (!simulateEnabled || liveMode) {
+      if (typeof window !== 'undefined') {
+        window.alert('Simulation is disabled in live mode.')
+      }
+      return
+    }
+
     try {
-      await simulatePayment(paymentRequestId)
+      const data = await simulatePayment(appKey, paymentRequestId)
+      if (!data?.ok) {
+        throw new Error(data?.error || 'Simulation failed')
+      }
+      await fetchOrders()
     } catch (err) {
       console.error('[Dashboard] simulate failed:', err)
-      window.alert(err instanceof Error ? err.message : 'Simulate payment failed')
+      if (typeof window !== 'undefined') {
+        window.alert('Simulation failed. Check backend logs and try again.')
+      }
+    }
+  }
+
+  async function handleSwitchToActiveDemoKey() {
+    if (!activeDemoKey) return
+    setSwitchingKey(true)
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/merchant/me`, {
+        headers: { 'x-app-key': activeDemoKey },
+      })
+      const data = await res.json()
+      if (!data?.ok || !data?.merchant?.walletAddress) {
+        throw new Error(data?.error || 'Failed to load active demo merchant')
+      }
+
+      localStorage.setItem('payport_app_key', activeDemoKey)
+      localStorage.setItem('payport_wallet', data.merchant.walletAddress)
+      window.location.reload()
+    } catch (err) {
+      console.error('[Dashboard] key switch failed:', err)
+      if (typeof window !== 'undefined') {
+        window.alert('Failed to switch to active demo key. Check backend health and retry.')
+      }
+    } finally {
+      setSwitchingKey(false)
     }
   }
 
@@ -143,52 +173,97 @@ export default function DashboardPage() {
 
   if (!appKey) return null
 
-  const hp2ModeClass = hp2Mode === 'HP2 MOCK'
-    ? 'bg-gray-500/10 text-gray-400 border-gray-500/20'
-    : 'bg-[#1A56FF]/10 text-[#1A56FF] border-[#1A56FF]/20'
+  const modePill = hp2Mode === 'HP2 MOCK'
+    ? {
+        label: 'MOCK',
+        className: 'bg-surface-raised border border-surface-border text-ink-muted',
+      }
+    : hp2Mode === 'HP2 SIM'
+      ? {
+          label: 'SIM',
+          className: 'bg-surface-raised border border-brand/20 text-brand',
+        }
+      : {
+          label: 'LIVE HP2',
+          className: 'bg-success/10 border border-success/20 text-success',
+        }
 
   return (
-    <main className="min-h-screen bg-[#0a0e17]">
-      <header className="border-b border-[#1f2937] px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-[#1A56FF] text-xl">⬡</span>
-          <span className="font-bold text-white tracking-tight">PayPort</span>
-          <span className="text-xs text-[#64748b] hidden sm:block">Merchant Dashboard</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-            <span className={`text-xs font-mono ${connected ? 'text-green-400' : 'text-red-400'}`}>
-              {connected ? 'LIVE' : 'OFFLINE'}
-            </span>
+    <main className="min-h-screen bg-surface-base">
+      <header className="border-b border-surface-border bg-surface-base/80 backdrop-blur-sm sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-sm font-medium text-ink-primary">PayPort</p>
+              <p className="text-xs text-ink-muted">Merchant Dashboard</p>
+            </div>
           </div>
-          <span className={`px-2 py-0.5 border rounded text-xs font-semibold uppercase tracking-wider ${hp2ModeClass}`}>
-            {hp2Mode}
-          </span>
-          {walletAddress && (
-            <span className="text-xs text-[#64748b] font-mono hidden md:block">
-              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${connected ? 'bg-brand animate-pulse' : 'bg-danger'}`} />
+              <span className={`text-xs font-mono ${connected ? 'text-ink-secondary' : 'text-danger'}`}>
+                {connected ? 'LIVE' : 'OFFLINE'}
+              </span>
+            </div>
+
+            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${modePill.className}`}>
+              {modePill.label}
             </span>
-          )}
-          <button
-            onClick={handleDisconnect}
-            className="px-3 py-1.5 text-xs bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors"
-          >
-            Disconnect
-          </button>
+
+            {walletAddress && (
+              <span className="text-xs text-ink-muted font-mono hidden md:block">
+                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              </span>
+            )}
+
+            {appKey && (
+              <span className="text-xs text-ink-muted font-mono hidden lg:block">
+                key: {appKey.slice(0, 8)}...{appKey.slice(-4)}
+              </span>
+            )}
+
+            <button
+              onClick={handleDisconnect}
+              className="text-xs text-danger/60 hover:text-danger transition-colors"
+            >
+              Disconnect
+            </button>
+          </div>
         </div>
       </header>
 
       {!connected && (
-        <div className="bg-red-500/10 border-b border-red-500/20 px-6 py-2 flex items-center gap-2">
-          <span className="text-red-400 text-xs">⚠ Live stream disconnected — data may be delayed. Reconnecting...</span>
+        <div className="bg-danger/10 border-b border-danger/20 px-6 py-2 flex items-center gap-2">
+          <span className="text-danger text-xs">Live stream disconnected. Data may be delayed while reconnecting.</span>
         </div>
       )}
 
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {liveMode && !simulateEnabled && (
+        <div className="bg-success/10 border-b border-success/20 px-6 py-2">
+          <span className="text-success text-xs">Live mode active. Simulation controls are disabled.</span>
+        </div>
+      )}
+
+      {liveMode && appKey && activeDemoKey && appKey !== activeDemoKey && (
+        <div className="bg-warning/10 border-b border-warning/20 px-6 py-2 flex items-center justify-between gap-3">
+          <span className="text-warning text-xs">
+            You are viewing a different merchant key than the active demo checkout key. New demo transactions may not appear here.
+          </span>
+          <button
+            onClick={handleSwitchToActiveDemoKey}
+            disabled={switchingKey}
+            className="text-xs px-2.5 py-1 rounded border border-warning/30 text-warning hover:bg-warning/20 disabled:opacity-60"
+          >
+            {switchingKey ? 'Switching...' : 'Switch To Active Key'}
+          </button>
+        </div>
+      )}
+
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
         {loading ? (
           <div className="flex items-center justify-center h-48">
-            <div className="h-8 w-8 border-2 border-[#1A56FF] border-t-transparent rounded-full animate-spin" />
+            <div className="h-8 w-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <>
@@ -198,26 +273,26 @@ export default function DashboardPage() {
               <div className="lg:col-span-2">
                 <SDKSnippet appKey={appKey} />
               </div>
-              <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-4">
-                <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-3">
+              <div className="bg-surface-card border border-surface-border rounded-xl p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <p className="text-sm font-medium text-ink-primary mb-3">
                   AI Agent Ready
                 </p>
-                <p className="text-xs text-[#64748b] leading-relaxed mb-3">
+                <p className="text-sm text-ink-secondary leading-relaxed mb-3">
                   PayPort supports autonomous AI agents. Agents can request payment links
                   programmatically via the REST API to monetize their services.
                 </p>
-                <div className="bg-[#0a0e17] border border-[#1f2937] rounded-lg p-3 font-mono text-xs">
-                  <p className="text-green-400">POST {BACKEND_URL}/api/payment/create</p>
-                  <p className="text-[#64748b]">x-app-key: {appKey.slice(0, 12)}...</p>
+                <div className="bg-surface-base border border-surface-border rounded-lg p-4 font-mono text-xs">
+                  <p className="text-brand">POST {BACKEND_URL}/api/payment/create</p>
+                  <p className="text-ink-muted mt-1">x-app-key: {appKey.slice(0, 12)}...</p>
                 </div>
               </div>
             </div>
 
             <OrdersTable
               orders={orders}
+              canSimulate={simulateEnabled && !liveMode}
               onSimulate={handleSimulate}
               onViewReceipt={setSelectedOrder}
-              simulateEnabled={simulateEnabled}
             />
 
             <PaymentLog initialEvents={events} newEvent={lastEvent} connected={connected} />

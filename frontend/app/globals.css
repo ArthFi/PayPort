@@ -3,20 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #0a0e17;
-  --bg-card: #111827;
+  --font-feature-settings: "tnum" on, "lnum" on;
 }
 
 body {
-  background-color: var(--bg-primary);
-  color: #f1f5f9;
+  background-color: #080C14;
+  color: #E8EDF5;
+  font-feature-settings: var(--font-feature-settings);
 }
 
-/* Dark scrollbar */
+* {
+  font-variant-numeric: tabular-nums;
+}
+
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #0a0e17; }
-::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1C2535; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #2D3748; }
+
+::selection { background: rgba(91,142,255,0.2); color: #E8EDF5; }
 
 /* Receipt print styles */
 @media print {

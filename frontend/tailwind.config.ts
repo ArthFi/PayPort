@@ -6,12 +6,27 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'bg-primary':   '#0a0e17',
-        'bg-card':      '#111827',
-        'bg-card-alt':  '#1a2332',
-        'bg-hover':     '#1e293b',
-        'hsk-blue':     '#1A56FF',
-        'border-dim':   '#1f2937',
+        surface: {
+          base: '#080C14',
+          card: '#0E1420',
+          raised: '#141B28',
+          border: '#1C2535',
+          hover: '#1A2234',
+        },
+        brand: {
+          DEFAULT: '#5B8EFF',
+          dim: '#2D4A99',
+          glow: 'rgba(91,142,255,0.12)',
+        },
+        success: '#34D399',
+        warning: '#FBBF24',
+        danger: '#F87171',
+        neutral: '#6B7280',
+        ink: {
+          primary: '#E8EDF5',
+          secondary: '#8896A8',
+          muted: '#4D5A6B',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

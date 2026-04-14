@@ -18,15 +18,12 @@ export async function getOrders(appKey: string) {
   return res.json()
 }
 
-export async function simulatePayment(paymentRequestId: string) {
+export async function simulatePayment(appKey: string, paymentRequestId: string) {
   const res = await fetch(`${BACKEND_URL}/api/webhook/simulate/${paymentRequestId}`, {
     method: 'POST',
+    headers: { 'x-app-key': appKey },
   })
-  const data = await res.json()
-  if (!res.ok || !data.ok) {
-    throw new Error(data.error || 'Simulate payment failed')
-  }
-  return data
+  return res.json()
 }
 
 export async function checkHealth() {

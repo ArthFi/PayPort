@@ -5,18 +5,21 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:live": "node server.js",
+    "start:sim": "node sim\\hp2-sim.js",
     "dev": "node --watch server.js",
     "sim": "node sim/hp2-sim.js",
     "sim:dev": "node --watch sim/hp2-sim.js",
-    "demo": "powershell -ExecutionPolicy Bypass -File sim/start-live.ps1",
-    "demo:live": "powershell -ExecutionPolicy Bypass -File sim/start-live.ps1",
-    "demo:sim": "powershell -ExecutionPolicy Bypass -File sim/start-sim.ps1",
-    "stop": "powershell -ExecutionPolicy Bypass -File sim/stop-all.ps1"
+    "demo": "powershell -File sim/start-live.ps1",
+    "demo:live": "powershell -File sim\\start-live.ps1",
+    "demo:sim": "powershell -File sim\\start-sim.ps1",
+    "stop": "powershell -File sim\\stop-all.ps1"
   },
   "keywords": ["crypto", "payment", "hashkey", "b2b"],
   "license": "MIT",
   "dependencies": {
     "express": "^4.21.0",
+    "express-rate-limit": "^8.3.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "better-sqlite3": "^11.3.0",

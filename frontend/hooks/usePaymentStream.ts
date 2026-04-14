@@ -12,6 +12,7 @@ export interface StreamEvent {
   token?: string
   status?: string
   txHash?: string
+  settlementType?: 'real' | 'simulated' | 'unknown'
   settledAt?: string
   eventType?: string
   message?: string

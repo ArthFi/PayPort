@@ -6,12 +6,12 @@
 
   var cfg = {
     appKey:      script.dataset.appKey      || '',
-    amount:      script.dataset.amount      || '10.00',
+    amount:      script.dataset.amount      || '5.00',
     token:       script.dataset.token       || 'USDC',
     orderId:     script.dataset.orderId     || '',
     description: script.dataset.description || 'PayPort SDK Order',
     apiBase:     script.dataset.apiBase     || 'http://localhost:3001',
-    buttonText:  script.dataset.buttonText  || '⬡ Pay with HashKey',
+    buttonText:  script.dataset.buttonText  || 'Pay with HashKey',
   };
 
   if (!cfg.appKey) {

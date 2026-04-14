@@ -3,6 +3,35 @@
 import { useState } from 'react'
 import { BACKEND_URL } from '../lib/constants'
 
+const TOKEN_MATCHER = /(\/\/.*$|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|\b(?:const|function|await|return|import|from)\b)/g
+
+function tokenClass(token: string) {
+  if (token.startsWith('//')) return 'text-ink-muted'
+  if (token.startsWith('"') || token.startsWith("'") || token.startsWith('`')) return 'text-success/80'
+  if (/^(const|function|await|return|import|from)$/.test(token)) return 'text-brand/90'
+  return 'text-ink-secondary'
+}
+
+function HighlightedCode({ code }: { code: string }) {
+  return (
+    <code className="block whitespace-pre">
+      {code.split('\n').map((line, i) => {
+        const parts = line.split(TOKEN_MATCHER)
+        return (
+          <div key={`${line}-${i}`}>
+            {parts.map((part, j) => (
+              <span key={`${part}-${j}`} className={tokenClass(part)}>
+                {part}
+              </span>
+            ))}
+            {i < code.split('\n').length - 1 ? '\n' : ''}
+          </div>
+        )
+      })}
+    </code>
+  )
+}
+
 export default function SDKSnippet({ appKey }: { appKey: string }) {
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'script' | 'rest'>('script')
@@ -10,7 +39,7 @@ export default function SDKSnippet({ appKey }: { appKey: string }) {
   const scriptSnippet = `<script
   src="${BACKEND_URL}/sdk/payport.js"
   data-app-key="${appKey}"
-  data-amount="10.00"
+  data-amount="5.00"
   data-token="USDC"
   data-order-id="order_001"
   data-api-base="${BACKEND_URL}"
@@ -19,7 +48,7 @@ export default function SDKSnippet({ appKey }: { appKey: string }) {
   const restSnippet = `curl -X POST ${BACKEND_URL}/api/payment/create \\
   -H "Content-Type: application/json" \\
   -H "x-app-key: ${appKey}" \\
-  -d '{"amount":"10.00","token":"USDC","description":"Service fee"}'`
+  -d '{"amount":"5.00","token":"USDC","description":"Service fee"}'`
 
   const snippet = activeTab === 'script' ? scriptSnippet : restSnippet
 
@@ -30,46 +59,45 @@ export default function SDKSnippet({ appKey }: { appKey: string }) {
   }
 
   return (
-    <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-          SDK Integration
-        </span>
+    <div className="bg-surface-card border border-surface-border rounded-xl p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-sm font-medium text-ink-primary">SDK Integration</span>
         <button
           onClick={handleCopy}
-          className="px-3 py-1 text-xs bg-green-500/10 text-green-400 border border-green-500/20 rounded-lg hover:bg-green-500/20 transition-colors"
+          className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-transparent border border-surface-border text-ink-secondary hover:border-brand/40 hover:text-ink-primary"
         >
           {copied ? '✓ Copied' : 'Copy'}
         </button>
       </div>
 
-      <div className="flex items-center border-b border-[#1f2937] mb-3">
+      <div className="flex items-center gap-5 border-b border-surface-border/60">
         <button
           onClick={() => setActiveTab('script')}
-          className={`px-3 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 ${
+          className={`text-xs font-medium border-b-2 pb-3 transition-colors ${
             activeTab === 'script'
-              ? 'bg-[#1f2937] text-white border-[#1A56FF]'
-              : 'text-[#64748b] border-transparent hover:text-[#94a3b8]'
+              ? 'text-ink-primary border-brand'
+              : 'text-ink-muted border-transparent hover:text-ink-secondary'
           }`}
         >
           Script Tag
         </button>
         <button
           onClick={() => setActiveTab('rest')}
-          className={`px-3 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 ${
+          className={`text-xs font-medium border-b-2 pb-3 transition-colors ${
             activeTab === 'rest'
-              ? 'bg-[#1f2937] text-white border-[#1A56FF]'
-              : 'text-[#64748b] border-transparent hover:text-[#94a3b8]'
+              ? 'text-ink-primary border-brand'
+              : 'text-ink-muted border-transparent hover:text-ink-secondary'
           }`}
         >
           REST API
         </button>
       </div>
 
-      <pre className="bg-[#0a0e17] border border-[#1f2937] rounded-lg p-4 text-xs text-green-400 font-mono overflow-x-auto whitespace-pre">
-        {snippet}
+      <pre className="bg-surface-base rounded-lg p-4 text-xs font-mono text-ink-secondary leading-relaxed overflow-x-auto mt-4 border border-surface-border">
+        <HighlightedCode code={snippet} />
       </pre>
-      <p className="text-xs text-[#64748b] mt-2">
+
+      <p className="text-xs text-ink-muted mt-3">
         Drop this into any webpage to accept crypto payments. The button renders automatically.
       </p>
     </div>

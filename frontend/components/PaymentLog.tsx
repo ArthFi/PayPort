@@ -18,12 +18,13 @@ interface LogEntry {
   timestamp: string
 }
 
-const EVENT_META: Record<string, { icon: string; color: string }> = {
-  'order.created': { icon: '↗', color: 'text-blue-400' },
-  'payment.pending': { icon: '◷', color: 'text-yellow-400' },
-  'payment.settled': { icon: '✓', color: 'text-green-400' },
-  'payment.failed': { icon: '✗', color: 'text-red-400' },
-  'order.updated': { icon: '·', color: 'text-[#94a3b8]' },
+const EVENT_STRIP: Record<string, string> = {
+  'order.created': 'border-brand',
+  'payment.pending': 'border-warning',
+  'payment.confirmed': 'border-brand',
+  'payment.settled': 'border-success',
+  'payment.failed': 'border-danger',
+  'order.updated': 'border-neutral',
 }
 
 function timeAgo(iso: string) {
@@ -103,36 +104,36 @@ export default function PaymentLog({
   }, [])
 
   return (
-    <div className="bg-[#0a0e17] border border-[#1f2937] rounded-xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#1f2937] flex items-center gap-2">
-        <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-          Live Transaction Log
-        </span>
-        <div className="ml-auto flex items-center gap-1.5">
-          <span className={`h-2 w-2 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
-          <span className={`text-xs font-mono ${connected ? 'text-green-400' : 'text-amber-400'}`}>
-            {connected ? 'LIVE' : 'PAUSED'}
-          </span>
+    <div className="bg-surface-card border border-surface-border rounded-xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+      <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+        <h2 className="text-sm font-medium text-ink-primary">Activity</h2>
+        <div className="flex items-center gap-2">
+          {connected ? (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+              <span className="text-xs text-ink-muted">Live</span>
+            </>
+          ) : (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-danger" />
+              <span className="text-xs text-ink-muted">Paused</span>
+            </>
+          )}
         </div>
       </div>
 
-      <div ref={scrollRef} className="h-56 overflow-y-auto p-4 font-mono text-xs space-y-1.5">
+      <div ref={scrollRef} className="h-56 overflow-y-auto">
         {entries.length === 0 ? (
-          <p className="text-[#64748b] text-center mt-8">
+          <p className="text-ink-muted text-center mt-8 text-sm px-5">
             No transactions yet — waiting for payments...
           </p>
         ) : (
           entries.map(entry => (
-            <div key={entry.id} className="flex gap-3 items-start">
-              <span className="text-[#64748b] shrink-0 tabular-nums font-mono w-16">
-                {timeAgo(entry.timestamp)}
-              </span>
-              <span className={`${EVENT_META[entry.eventType]?.color ?? 'text-[#64748b]'} w-4`}> 
-                {EVENT_META[entry.eventType]?.icon ?? '·'}
-              </span>
-              <span className={EVENT_META[entry.eventType]?.color ?? 'text-[#64748b]'}>
-                {entry.message}
-              </span>
+            <div key={entry.id} className="px-5 py-3 border-b border-surface-border/50 hover:bg-surface-hover transition-colors last:border-0">
+              <div className={`border-l-2 pl-4 ${EVENT_STRIP[entry.eventType] || 'border-neutral'}`}>
+                <p className="text-sm text-ink-secondary">{entry.message}</p>
+                <p className="text-xs text-ink-muted font-mono mt-0.5">{timeAgo(entry.timestamp)}</p>
+              </div>
             </div>
           ))
         )}

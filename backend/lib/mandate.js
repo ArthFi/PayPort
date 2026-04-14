@@ -59,9 +59,15 @@ function signES256K(claims, privateKeyHex) {
 }
 
 function getTokenAddress(token) {
-  if (token === 'USDC') return constants.USDC_ADDRESS;
-  if (token === 'USDT') return constants.USDT_ADDRESS;
-  throw new Error(`Unsupported token for cart mandate: ${token}`);
+  const tokenCfg = constants.TOKEN_CONFIG?.[token];
+  if (tokenCfg?.address) return tokenCfg.address;
+  throw new Error(`Unsupported token for cart mandate: ${token}. Configure TOKEN_CONFIG_JSON in backend/.env.`);
+}
+
+function getTokenCoin(token) {
+  const tokenCfg = constants.TOKEN_CONFIG?.[token];
+  if (tokenCfg?.coin) return tokenCfg.coin;
+  throw new Error(`Unsupported token for cart mandate: ${token}. Configure TOKEN_CONFIG_JSON in backend/.env.`);
 }
 
 
@@ -81,6 +87,7 @@ async function buildCartMandate({
   const expiry = new Date(now + expiryHours * 3600 * 1000);
 
   const contractAddress = getTokenAddress(token);
+  const coin = getTokenCoin(token);
 
   const contents = {
     id: cartId,
@@ -98,7 +105,7 @@ async function buildCartMandate({
             chain_id: 133,
             contract_address: contractAddress,
             pay_to: toAddress,
-            coin: token,
+            coin,
           },
         },
       ],
@@ -151,4 +158,5 @@ module.exports = {
   canonicalJSON,
   sha256hex,
   getTokenAddress,
+  getTokenCoin,
 };

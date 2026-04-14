@@ -16,6 +16,7 @@ export interface Order {
   created_at: string
   updated_at: string
   settled_at: string | null
+  settlement_type: 'real' | 'simulated' | 'unknown' | null
 }
 
 function timeAgo(iso: string) {
@@ -29,21 +30,21 @@ function timeAgo(iso: string) {
 }
 
 function shortDescription(description: string | null) {
-  if (!description) return 'No description'
-  if (description.length <= 20) return description
-  return `${description.slice(0, 20)}...`
+  if (!description) return ''
+  if (description.length <= 24) return description
+  return `${description.slice(0, 24)}...`
 }
 
 export default function OrdersTable({
   orders,
+  canSimulate = true,
   onSimulate,
   onViewReceipt,
-  simulateEnabled = true,
 }: {
   orders: Order[]
+  canSimulate?: boolean
   onSimulate: (paymentRequestId: string) => Promise<void>
   onViewReceipt: (order: Order) => void
-  simulateEnabled?: boolean
 }) {
   const [simulating, setSimulating] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
@@ -66,16 +67,15 @@ export default function OrdersTable({
   }
 
   return (
-    <div className="bg-[#111827] border border-[#1f2937] rounded-xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#1f2937]">
-        <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-          Payment Orders
-        </span>
+    <div className="bg-surface-card border border-surface-border rounded-xl overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+      <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+        <h2 className="text-sm font-medium text-ink-primary">Payment Orders</h2>
+        <span className="text-xs text-ink-muted font-mono">{orders.length} total</span>
       </div>
 
       {orders.length === 0 ? (
         <div className="p-12 text-center">
-          <p className="text-[#64748b] text-sm">
+          <p className="text-ink-muted text-sm">
             No payments yet. Copy your SDK snippet below to start accepting payments.
           </p>
         </div>
@@ -83,9 +83,9 @@ export default function OrdersTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#1f2937]">
+              <tr className="border-b border-surface-border">
                 {['Order ID', 'Amount', 'Status', 'Created', 'Actions'].map(h => (
-                  <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-[#64748b] uppercase tracking-wider">
+                  <th key={h} className="text-left py-3 px-4 text-xs text-ink-muted font-medium">
                     {h}
                   </th>
                 ))}
@@ -95,38 +95,35 @@ export default function OrdersTable({
               {orders.map(order => (
                 <tr
                   key={order.id}
-                  className="border-b border-[#1f2937]/50 hover:bg-white/5 transition-colors cursor-default"
+                  className="border-b border-surface-border/50 hover:bg-surface-hover transition-colors cursor-default last:border-0"
                 >
-                  <td className="py-3 px-4 font-mono text-xs text-[#94a3b8]">
-                    <div>
-                      <p className="font-mono text-xs text-[#f1f5f9]">{order.id.slice(0, 8)}...</p>
-                      <p
-                        className="text-[11px] text-[#64748b] mt-1 truncate max-w-[200px]"
-                        title={order.description || 'No description'}
-                      >
+                  <td className="py-3 px-4">
+                    <p className="text-sm font-mono text-ink-primary">{order.id.slice(0, 8)}</p>
+                    {order.description && (
+                      <p className="text-xs text-ink-muted mt-0.5 truncate max-w-32" title={order.description}>
                         {shortDescription(order.description)}
                       </p>
-                    </div>
+                    )}
                   </td>
                   <td className="py-3 px-4">
-                    <span className="font-mono text-white">{order.amount}</span>
-                    <span className="px-1.5 py-0.5 bg-[#1A56FF]/10 text-[#1A56FF] border border-[#1A56FF]/20 rounded text-xs font-mono ml-1">
+                    <span className="font-mono text-sm text-ink-primary">{order.amount}</span>
+                    <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-mono bg-brand/10 text-brand/90 border border-brand/20">
                       {order.token}
                     </span>
                   </td>
                   <td className="py-3 px-4">
                     <StatusBadge status={order.status} />
                   </td>
-                  <td className="py-3 px-4 text-xs text-[#64748b] font-mono">
+                  <td className="py-3 px-4 text-xs text-ink-muted font-mono">
                     {timeAgo(order.created_at)}
                   </td>
                   <td className="py-3 px-4">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1">
-                      {simulateEnabled && ['initiated', 'pending'].includes(order.status) && (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                      {canSimulate && ['initiated', 'pending'].includes(order.status) && (
                         <button
                           onClick={() => handleSimulate(order)}
                           disabled={simulating === (order.payment_request_id || order.cart_mandate_id)}
-                          className="px-2.5 py-1 text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-lg hover:bg-yellow-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-xs px-3 py-1.5 rounded-md font-medium transition-colors bg-warning/10 text-warning border border-warning/20 hover:bg-warning/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {simulating === (order.payment_request_id || order.cart_mandate_id) ? '...' : '⚡ Simulate'}
                         </button>
@@ -134,14 +131,14 @@ export default function OrdersTable({
                       {['initiated', 'pending'].includes(order.status) && order.payment_url && (
                         <button
                           onClick={() => handleCopyLink(order)}
-                          className="px-2.5 py-1 text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-colors"
+                          className="text-xs px-3 py-1.5 rounded-md font-medium transition-colors bg-surface-raised text-ink-secondary border border-surface-border hover:border-brand/30 hover:text-brand"
                         >
                           {copied === order.id ? 'Copied!' : 'Copy Link'}
                         </button>
                       )}
                       <button
                         onClick={() => onViewReceipt(order)}
-                        className="px-2.5 py-1 text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-colors"
+                        className="text-xs px-3 py-1.5 rounded-md font-medium transition-colors bg-surface-raised text-ink-secondary border border-surface-border hover:border-surface-border/80"
                       >
                         Receipt
                       </button>

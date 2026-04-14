@@ -30,7 +30,8 @@ db.exec(`
     tx_hash             TEXT,
     created_at          TEXT NOT NULL,
     updated_at          TEXT NOT NULL,
-    settled_at          TEXT
+    settled_at          TEXT,
+    settlement_type     TEXT DEFAULT 'unknown'
   );
 
   CREATE TABLE IF NOT EXISTS payment_events (
@@ -45,6 +46,11 @@ db.exec(`
 
 try {
   db.exec('ALTER TABLE orders ADD COLUMN payment_url TEXT');
+} catch (_err) {
+}
+
+try {
+  db.exec("ALTER TABLE orders ADD COLUMN settlement_type TEXT DEFAULT 'unknown'");
 } catch (_err) {
 }
 
@@ -138,6 +144,7 @@ function createOrder(merchantId, data) {
     created_at: now,
     updated_at: now,
     settled_at: null,
+    settlement_type: 'unknown',
   };
 }
 
@@ -158,6 +165,8 @@ function updateOrderStatus(paymentRequestId, status, extras = {}) {
   if (status === 'settled') {
     fields.push('settled_at = @settled_at');
     params.settled_at = extras.settledAt || now;
+    fields.push('settlement_type = @settlement_type');
+    params.settlement_type = extras.settlementType || 'unknown';
   }
 
   const sql = `

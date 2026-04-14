@@ -12,7 +12,7 @@ const SIM_APP_SECRET = process.env.HP2_APP_SECRET || 'local_secret';
 const BACKEND_WEBHOOK_URL = process.env.HP2_WEBHOOK_URL || 'http://localhost:3001/api/webhook';
 const FRONTEND_MOCK_PAYMENT_URL = process.env.FRONTEND_MOCK_PAYMENT_URL || 'http://localhost:3000/mock-payment';
 const TOKEN_ADDRESSES = {
-  USDC: '0x8FE3cB719Ee4410E236Cd6b72ab1fCDC06eF53c6',
+  USDC: '0x18Ec8e93627c893ae61ae0491c1C98769FD4Dfa2',
   USDT: '0x372325443233fEbaC1F6998aC750276468c83CC6',
 };
 
@@ -420,7 +420,7 @@ process.on('uncaughtException', (error) => {
 });
 
 app.listen(SIM_PORT, () => {
-  console.log('\n⬡  HP2 Sim Server running on http://localhost:3002');
+  console.log('\nHP2 Sim Server running on http://localhost:3002');
   console.log('   Simulates: HashKey Payment Protocol v2');
   console.log(`   App Key:   ${SIM_APP_KEY}`);
   console.log(`   Secret:    ${SIM_APP_SECRET ? 'configured' : 'missing'}`);

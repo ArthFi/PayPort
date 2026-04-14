@@ -33,10 +33,13 @@ export default function StatsBar({ orders }: { orders: Order[] }) {
   }, [])
 
   const total = orders.length
-  const settled = orders.filter(o => o.status === 'settled').length
-  const pending = orders.filter(o => ['initiated', 'pending', 'confirmed'].includes(o.status)).length
+  const finalizedStatuses = new Set(['confirmed', 'settled'])
+  const pendingStatuses = new Set(['initiated', 'pending'])
+
+  const finalized = orders.filter(o => finalizedStatuses.has(o.status)).length
+  const pending = orders.filter(o => pendingStatuses.has(o.status)).length
   const volume = orders
-    .filter(o => o.status === 'settled')
+    .filter(o => finalizedStatuses.has(o.status))
     .reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0)
     .toFixed(2)
 
@@ -48,64 +51,46 @@ export default function StatsBar({ orders }: { orders: Order[] }) {
     : null
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-      <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-4">
-        <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-2">
-          Total Orders
-        </p>
-        <div className="flex items-center justify-between">
-          <p className="text-2xl font-mono font-bold text-white">{total}</p>
-          <span className="text-xs font-mono text-[#64748b]">↗</span>
+    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-5 gap-3">
+      <div className="xl:col-span-2 bg-surface-card border border-surface-border rounded-xl p-5 ring-1 ring-brand/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <p className="text-xs text-ink-muted uppercase tracking-wide">Total Volume</p>
+        <div>
+          <p className="text-3xl font-mono font-semibold text-ink-primary mt-1">${volume}</p>
+          <p className="text-xs text-ink-muted font-mono mt-1">HashKey Chain · 133</p>
         </div>
       </div>
 
-      <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-4">
-        <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-2">
-          Settled
-        </p>
-        <div className="flex items-center justify-between">
-          <p className="text-2xl font-mono font-bold text-green-400">{settled}</p>
-          <span className="text-xs font-mono text-green-400">↑</span>
-        </div>
+      <div className="bg-surface-card border border-surface-border rounded-xl p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <p className="text-xs text-ink-muted">Total orders</p>
+        <p className="text-2xl font-mono font-semibold mt-2 text-ink-primary">{total}</p>
       </div>
 
-      <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-4">
-        <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-2">
-          Pending
-        </p>
-        <div className="flex items-center justify-between">
-          <p className="text-2xl font-mono font-bold text-yellow-400">{pending}</p>
-          <span className="text-xs font-mono text-yellow-400">↻</span>
-        </div>
+      <div className="bg-surface-card border border-surface-border rounded-xl p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <p className="text-xs text-ink-muted">Finalized</p>
+        <p className="text-2xl font-mono font-semibold mt-2 text-success">{finalized}</p>
+        <p className="text-[11px] text-ink-muted mt-1">confirmed + settled</p>
       </div>
 
-      <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-4">
-        <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-2">
-          Total Volume
-        </p>
-        <div className="flex items-center justify-between">
-          <p className="text-2xl font-mono font-bold text-[#1A56FF]">${volume}</p>
-          <span className="text-xs font-mono text-[#1A56FF]">↗</span>
-        </div>
-        <p className="text-xs text-[#64748b] font-mono mt-1">HashKey Chain · 133</p>
+      <div className="bg-surface-card border border-surface-border rounded-xl p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <p className="text-xs text-ink-muted">Pending</p>
+        <p className="text-2xl font-mono font-semibold mt-2 text-warning">{pending}</p>
       </div>
 
-      <div className="bg-[#111827] border border-[#1f2937] rounded-xl p-4">
-        <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider mb-2">
-          KYC Contract
-        </p>
+      <div className="bg-surface-card border border-surface-border rounded-xl p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] col-span-2 sm:col-span-2 xl:col-span-1">
+        <p className="text-xs text-ink-muted">KYC Contract</p>
         {isAddress && !isZeroAddress && kycExplorer ? (
           <a
             href={kycExplorer}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-mono font-semibold text-[#1A56FF] hover:underline"
+            className="text-xs font-mono text-brand hover:text-brand/80 transition-colors mt-2 block truncate"
           >
             {kycDisplay}
           </a>
         ) : (
-          <p className="text-sm font-mono font-semibold text-amber-400">NOT DEPLOYED</p>
+          <p className="text-xs font-mono text-ink-muted mt-2">NOT DEPLOYED</p>
         )}
+        <p className="text-xs text-ink-muted mt-1">chain 133</p>
       </div>
     </div>
   )

@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="font-sans bg-[#0a0e17] text-[#f1f5f9] min-h-screen antialiased">
+      <body className="font-sans bg-surface-base text-ink-primary min-h-screen antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

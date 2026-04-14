@@ -2,94 +2,72 @@ $ErrorActionPreference = 'Stop'
 
 $backendDir = Split-Path -Parent $PSScriptRoot
 $rootDir = Split-Path -Parent $backendDir
+$backendDir = Join-Path $rootDir 'backend'
 $frontendDir = Join-Path $rootDir 'frontend'
 
-function Use-Node20IfAvailable {
-  if (-not $env:NVM_HOME) {
-    Write-Host 'NVM_HOME is not set. Using existing PATH node/npm.'
-    return ''
-  }
-
-  $nodeHome = Join-Path $env:NVM_HOME 'v20.20.2'
-  $npmBin = Join-Path $nodeHome 'node_modules\npm\bin'
-
-  if (-not (Test-Path $nodeHome)) {
-    Write-Host "Node v20.20.2 not found at $nodeHome. Using existing PATH node/npm."
-    return ''
-  }
-
-  $env:Path = "$nodeHome;$npmBin;$env:Path"
-  return "$nodeHome;$npmBin"
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+  throw 'node is not available in PATH. Install Node.js and try again.'
 }
 
-function Stop-Ports {
-  param([int[]]$Ports)
+if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+  throw 'npm is not available in PATH. Install Node.js/npm and try again.'
+}
 
-  $killed = @{}
+Set-Location $rootDir
 
-  foreach ($port in $Ports) {
-    $listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-    if (-not $listeners) {
-      Write-Host "Port $port is free"
-      continue
-    }
-
-    $pids = $listeners | Select-Object -ExpandProperty OwningProcess -Unique
-    foreach ($procId in $pids) {
-      if (-not $procId) { continue }
-      if ($killed.ContainsKey($procId)) { continue }
-
-      try {
-        Stop-Process -Id $procId -ErrorAction Stop
-      } catch {
-        Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
-      }
-
-      $killed[$procId] = $true
-      Write-Host "Stopped PID $procId on port $port"
-    }
+foreach ($port in @(3000, 3001, 3002, 4040)) {
+  $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+  if ($conns) {
+    $conns | Select-Object -ExpandProperty OwningProcess -Unique |
+    ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
   }
 }
 
-$subprocessPathPrefix = Use-Node20IfAvailable
-Stop-Ports -Ports @(3000, 3001, 3002, 4040)
-
-$ngrokExe = 'C:\Users\EDITH\AppData\Local\ngrok\ngrok.exe'
+$ngrokExe = 'C:\Users\Arsh\AppData\Local\ngrok\ngrok.exe'
 if (-not (Test-Path $ngrokExe)) {
-  $ngrokExe = 'ngrok'
+  $ngrokCmd = Get-Command ngrok -ErrorAction SilentlyContinue
+  if ($ngrokCmd) {
+    $ngrokExe = $ngrokCmd.Source
+  }
+  else {
+    $ngrokExe = $null
+  }
 }
 
-$ngrokDomain = if ($env:NGROK_DOMAIN) { $env:NGROK_DOMAIN } else { 'unsaid-carline-incommensurately.ngrok-free.dev' }
-Start-Process powershell -ArgumentList @('-NoExit', '-Command', "& '$ngrokExe' http 3001 --domain=$ngrokDomain")
-Start-Sleep -Seconds 2
+if ($ngrokExe) {
+  Start-Process powershell -ArgumentList @(
+    '-NoExit', '-Command',
+    "& '$ngrokExe' http 3001 --domain=unsaid-carline-incommensurately.ngrok-free.dev"
+  )
+  Start-Sleep -Seconds 4
+}
+else {
+  Write-Warning 'ngrok not found on this machine. Continuing without tunnel.'
+}
 
-$pathPrefixPart = if ($subprocessPathPrefix) { "$env:Path = '$subprocessPathPrefix;' + `$env:Path; " } else { '' }
-
-$backendCommand = @(
-  $pathPrefixPart,
-  "Set-Location '$backendDir'; ",
-  "`$env:HP2_MOCK='false'; ",
-  "`$env:ENABLE_SIMULATE_ENDPOINT='false'; ",
-  "if (-not `$env:HP2_BASE_URL -or `$env:HP2_BASE_URL -match 'localhost|127.0.0.1|:3002') { `$env:HP2_BASE_URL='https://merchant-qa.hashkeymerchant.com' }; ",
-  "node server.js"
-) -join ''
-
-$frontendCommand = @(
-  $pathPrefixPart,
-  "Set-Location '$frontendDir'; ",
-  "npm run dev"
-) -join ''
+$backendCommand = ('Set-Location ''{0}''; node .\server.js' -f $backendDir)
+$frontendCommand = ('Set-Location ''{0}''; npm run dev' -f $frontendDir)
 
 Start-Process powershell -WorkingDirectory $backendDir -ArgumentList @('-NoExit', '-Command', $backendCommand)
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 
 Start-Process powershell -WorkingDirectory $frontendDir -ArgumentList @('-NoExit', '-Command', $frontendCommand)
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 5
 
 Start-Process 'http://localhost:3001/demo'
 
-Write-Host "LIVE mode startup launched"
-Write-Host "ngrok:     https://$ngrokDomain"
-Write-Host "backend:   http://localhost:3001/api/health"
-Write-Host "frontend:  http://localhost:3000/onboard"
-Write-Host "demo:      http://localhost:3001/demo"
+Write-Output ''
+Write-Output 'PayPort - LIVE MODE'
+Write-Output '  Backend:   http://localhost:3001 (real HP2)'
+Write-Output '  Frontend:  http://localhost:3000'
+if ($ngrokExe) {
+  Write-Output '  Webhook:   https://unsaid-carline-incommensurately.ngrok-free.dev/api/webhook'
+}
+else {
+  Write-Output '  Webhook:   ngrok not started'
+}
+Write-Output '  Demo:      http://localhost:3001/demo'
+Write-Output '  Dashboard: http://localhost:3000/dashboard'
+Write-Output ''
+Write-Output 'Sim server NOT running (live mode)'
+Write-Output 'ENABLE_SIMULATE_ENDPOINT=false (simulate disabled)'

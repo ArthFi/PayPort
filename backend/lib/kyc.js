@@ -65,7 +65,11 @@ async function checkKYC(walletAddress) {
 
   const contractAddr = constants.KYC_CONTRACT_ADDRESS;
   if (!contractAddr || contractAddr === ZERO_ADDRESS) {
-    return bypassResult(walletAddress, 'KYC_CONTRACT_ADDRESS is zero or missing.');
+    if (constants.DEV_BYPASS_KYC === 'true') {
+      return bypassResult(walletAddress, 'KYC_CONTRACT_ADDRESS is zero or missing.');
+    }
+    console.error('[KYC] KYC_CONTRACT_ADDRESS is zero/missing in live mode — failing closed');
+    return { isHuman: false, level: 0, status: 0, ensName: '', path: 'zero-address-fail-closed' };
   }
 
   const client = createPublicClient({
@@ -116,7 +120,12 @@ async function checkKYC(walletAddress) {
     }
   } catch (err) {
     console.error(`[KYC] On-chain check failed for ${walletAddress}:`, err.message);
-    return bypassResult(walletAddress, 'RPC read failed.');
+    if (constants.DEV_BYPASS_KYC === 'true') {
+      console.warn('[KYC] RPC error, bypass enabled — returning bypass result');
+      return bypassResult(walletAddress, 'RPC read failed.');
+    }
+    console.error('[KYC] RPC error in live mode — failing closed');
+    return { isHuman: false, level: 0, status: 0, ensName: '', path: 'rpc-error-fail-closed' };
   }
 }
 
