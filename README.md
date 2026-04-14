@@ -67,6 +67,12 @@ Merchants can integrate through a one-script embed or direct REST APIs.
 
 This sequence proves storefront checkout handoff, provider progression, dashboard reconciliation, receipt generation, and explorer-level settlement evidence.
 
+### Failure-Handling Proof
+
+![Status Failure Diagnostics](images/12-status-failure-diagnostics.png)
+
+PayPort surfaces provider-level diagnostics through `/api/payment/status/:paymentRequestId`, including `providerStatus` and `failureReason`, then reconciles this state back into merchant operations. This is built for production debugging, not just happy-path demos.
+
 ---
 
 ## Architecture
