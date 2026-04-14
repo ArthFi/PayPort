@@ -15,6 +15,7 @@ const {
 const { buildCartMandate } = require('../lib/mandate');
 const hp2 = require('../lib/hp2');
 const { broadcastToMerchant } = require('../sse');
+const constants = require('../constants');
 
 const router = Router();
 
@@ -117,13 +118,24 @@ router.get('/status/:paymentRequestId', requireAppKey, (req, res) => {
 
     return res.json({
       ok: true,
+      orderId: order.id,
+      cartMandateId: order.cart_mandate_id,
+      paymentRequestId: order.payment_request_id,
       status: order.status,
       txHash: order.tx_hash,
+      paymentUrl: order.payment_url,
       amount: order.amount,
       token: order.token,
-      createdAt: order.created_at,
-      updatedAt: order.updated_at,
-      settledAt: order.settled_at,
+      provider: {
+        hp2Mock: constants.HP2_MOCK,
+        hp2BaseUrl: constants.HP2_BASE_URL,
+        simulateEnabled: constants.ENABLE_SIMULATE_ENDPOINT,
+      },
+      timeline: {
+        createdAt: order.created_at,
+        updatedAt: order.updated_at,
+        settledAt: order.settled_at,
+      },
     });
   } catch (err) {
     console.error('[Payment] Status error:', err);

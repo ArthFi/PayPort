@@ -3,6 +3,9 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const HP2_MOCK = process.env.HP2_MOCK === 'false' ? 'false' : 'true';
 const DEV_BYPASS_KYC = process.env.DEV_BYPASS_KYC === 'false' ? 'false' : 'true';
+const ENABLE_SIMULATE_ENDPOINT = typeof process.env.ENABLE_SIMULATE_ENDPOINT === 'string'
+  ? (process.env.ENABLE_SIMULATE_ENDPOINT === 'true' ? 'true' : 'false')
+  : (HP2_MOCK === 'true' ? 'true' : 'false');
 
 const REQUIRED_ALWAYS = ['PORT', 'MERCHANT_PRIVATE_KEY'];
 for (const key of REQUIRED_ALWAYS) {
@@ -28,6 +31,7 @@ module.exports = {
   PORT: parseInt(process.env.PORT, 10) || 3001,
   MERCHANT_PRIVATE_KEY: process.env.MERCHANT_PRIVATE_KEY,
   DEV_BYPASS_KYC,
+  ENABLE_SIMULATE_ENDPOINT,
   KYC_CONTRACT_ADDRESS: process.env.KYC_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000',
   HP2_MOCK,
   HP2_BASE_URL: process.env.HP2_BASE_URL || 'https://api.hp2.hashkey.com',

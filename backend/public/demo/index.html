@@ -310,15 +310,19 @@
     .then(function(data) {
       var el = document.getElementById('payport-status');
       if (data.ok) {
+        var mode = String(data.mode || '').toUpperCase() || 'MOCK';
+        var simulate = String(data.simulateEnabled) === 'true' ? 'SIM ENABLED' : 'SIM DISABLED';
         el.innerHTML = '⬡ PayPort Online · HP2 '
-          + (data.mockMode === 'false' ? 'SIM MODE' : 'MOCK MODE')
+          + mode
+          + ' MODE · '
+          + simulate
           + ' · HashKey Chain 133';
         el.style.color = '#22c55e';
       }
     })
     .catch(function() {
       var el = document.getElementById('payport-status');
-      el.innerHTML = '⚠ Backend offline — run start-all.ps1';
+      el.innerHTML = '⚠ Backend offline — run npm run demo:live';
       el.style.color = '#ef4444';
     });
 </script>

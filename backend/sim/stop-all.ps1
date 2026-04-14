@@ -43,4 +43,4 @@ function Stop-Ports {
   }
 }
 
-Stop-Ports -Ports @(3000, 3001, 3002)
+Stop-Ports -Ports @(3000, 3001, 3002, 4040)

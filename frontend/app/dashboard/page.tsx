@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [hp2Mode, setHp2Mode] = useState<'HP2 MOCK' | 'HP2 SIM' | 'HP2 LIVE'>('HP2 MOCK')
+  const [simulateEnabled, setSimulateEnabled] = useState(true)
 
   useEffect(() => {
     const key = localStorage.getItem('payport_app_key')
@@ -66,6 +67,22 @@ export default function DashboardPage() {
         const health = await checkHealth()
         if (!active || !health) return
 
+        setSimulateEnabled(String(health.simulateEnabled) === 'true')
+
+        const mode = String(health.mode || '').toLowerCase()
+        if (mode === 'live') {
+          setHp2Mode('HP2 LIVE')
+          return
+        }
+        if (mode === 'sim') {
+          setHp2Mode('HP2 SIM')
+          return
+        }
+        if (mode === 'mock') {
+          setHp2Mode('HP2 MOCK')
+          return
+        }
+
         const mockMode = String(health.mockMode) === 'true'
         if (mockMode) {
           setHp2Mode('HP2 MOCK')
@@ -76,7 +93,10 @@ export default function DashboardPage() {
         const isSim = base.includes('localhost') || base.includes('127.0.0.1') || base.includes(':3002')
         setHp2Mode(isSim ? 'HP2 SIM' : 'HP2 LIVE')
       } catch {
-        if (active) setHp2Mode('HP2 MOCK')
+        if (active) {
+          setHp2Mode('HP2 MOCK')
+          setSimulateEnabled(true)
+        }
       }
     }
 
@@ -107,7 +127,12 @@ export default function DashboardPage() {
   }, [lastEvent, fetchOrders])
 
   async function handleSimulate(paymentRequestId: string) {
-    await simulatePayment(paymentRequestId)
+    try {
+      await simulatePayment(paymentRequestId)
+    } catch (err) {
+      console.error('[Dashboard] simulate failed:', err)
+      window.alert(err instanceof Error ? err.message : 'Simulate payment failed')
+    }
   }
 
   function handleDisconnect() {
@@ -192,6 +217,7 @@ export default function DashboardPage() {
               orders={orders}
               onSimulate={handleSimulate}
               onViewReceipt={setSelectedOrder}
+              simulateEnabled={simulateEnabled}
             />
 
             <PaymentLog initialEvents={events} newEvent={lastEvent} connected={connected} />

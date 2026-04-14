@@ -199,8 +199,11 @@ router.post('/', (req, res) => {
 
 router.post('/simulate/:paymentRequestId', (req, res) => {
   try {
-    if (constants.HP2_MOCK !== 'true') {
-      console.warn('[Webhook] /simulate called in production mode — proceeding with caution');
+    if (constants.ENABLE_SIMULATE_ENDPOINT !== 'true') {
+      return res.status(403).json({
+        ok: false,
+        error: 'Simulate endpoint is disabled in current mode',
+      });
     }
 
     const { paymentRequestId } = req.params;

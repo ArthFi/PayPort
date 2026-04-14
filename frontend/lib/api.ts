@@ -22,7 +22,11 @@ export async function simulatePayment(paymentRequestId: string) {
   const res = await fetch(`${BACKEND_URL}/api/webhook/simulate/${paymentRequestId}`, {
     method: 'POST',
   })
-  return res.json()
+  const data = await res.json()
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'Simulate payment failed')
+  }
+  return data
 }
 
 export async function checkHealth() {

@@ -57,10 +57,19 @@ app.use('/api/payment', paymentRouter);
 app.use('/api', streamRouter);
 
 app.get('/api/health', (_req, res) => {
+  const hp2Base = String(constants.HP2_BASE_URL || '').toLowerCase();
+  const localHp2 = hp2Base.includes('localhost') || hp2Base.includes('127.0.0.1') || hp2Base.includes(':3002');
+  const liveMode = constants.HP2_MOCK !== 'true' && !localHp2;
+  const simulateEnabled = constants.ENABLE_SIMULATE_ENDPOINT === 'true';
+  const mode = liveMode ? 'live' : (simulateEnabled && localHp2 ? 'sim' : 'mock');
+
   res.json({
     ok: true,
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
+    mode,
+    liveMode,
+    simulateEnabled: constants.ENABLE_SIMULATE_ENDPOINT,
     mockMode: constants.HP2_MOCK,
     bypassKYC: constants.DEV_BYPASS_KYC,
     kycContract: constants.KYC_CONTRACT_ADDRESS,

@@ -38,10 +38,12 @@ export default function OrdersTable({
   orders,
   onSimulate,
   onViewReceipt,
+  simulateEnabled = true,
 }: {
   orders: Order[]
   onSimulate: (paymentRequestId: string) => Promise<void>
   onViewReceipt: (order: Order) => void
+  simulateEnabled?: boolean
 }) {
   const [simulating, setSimulating] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
@@ -120,7 +122,7 @@ export default function OrdersTable({
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1">
-                      {['initiated', 'pending'].includes(order.status) && (
+                      {simulateEnabled && ['initiated', 'pending'].includes(order.status) && (
                         <button
                           onClick={() => handleSimulate(order)}
                           disabled={simulating === (order.payment_request_id || order.cart_mandate_id)}
