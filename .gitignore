@@ -6,3 +6,7 @@ node_modules/
 contracts/out/
 contracts/cache/
 contracts/lib/
+contracts/broadcast/
+.vscode/
+*.class
+extra/
