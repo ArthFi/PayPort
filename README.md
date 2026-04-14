@@ -1,60 +1,67 @@
+![HashKey Chain](https://img.shields.io/badge/HashKey_Chain-Testnet_133-1A56FF?style=flat-square)
+![HP2](https://img.shields.io/badge/HP2-Live_Integration-34D399?style=flat-square)
+![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square)
+![Solidity](https://img.shields.io/badge/Solidity-0.8.20-363636?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
+
 # PayPort
 
-**Compliant B2B stablecoin payment infrastructure on HashKey Chain via HP2.**
+Accept USDC and USDT payments on HashKey Chain with one script tag.
 
-PayPort turns stablecoin checkout into an operator-ready merchant flow: onboarding with compliance context, signed payment creation, verified webhook settlement, and real-time payment state tracking.
-
----
-
-## What Problem Are We Solving?
-
-Most crypto payment demos end at "payment link created".
-
-Real merchants need more than that:
-
-- compliance-aware onboarding before accepting funds
-- clear payment lifecycle states after checkout
-- auditable settlement evidence for finance and ops teams
-- live visibility into pending, confirmed, settled, and failed orders
-
-PayPort solves this end to end.
+PayPort is a drop-in payment SDK for HashKey Chain. Add it to any website with a single `<script>` tag and start accepting stablecoin payments in minutes, no custom HP2 integration required. Built for the [HashKey Chain Horizon Hackathon](https://dorahacks.io/hackathon/2045) 2026, PayFi track.
 
 ---
 
-## Product Overview
+## For Merchants: Three Steps
 
-- Merchant registration and app-key based auth (`x-app-key`)
-- KYC-gated onboarding path (runtime toggle via env)
-- HP2 Single-Pay order creation
-- Cart Mandate authorization using ES256K JWT
-- HP2 request signing and webhook verification (HMAC-SHA256)
-- Order state machine: `initiated`, `pending`, `confirmed`, `settled`, `failed`
-- Real-time merchant updates through SSE
-- Drop-in script SDK at `/sdk/payport.js`
+1. **Get verified** - Connect your wallet on HashKey Chain Testnet. PayPort checks your KYC Soul Bound Token on-chain before issuing an API key. Compliance happens at entry, not as paperwork later.
+
+2. **Embed one script** - Add `payport.js` to your page with your API key. A styled **Pay with HashKey** button appears. When clicked, it creates a payment order, opens the HashKey checkout, and handles the entire payment lifecycle.
+
+3. **Watch it settle** - The merchant dashboard shows every order state in real time via SSE. When a payment confirms on HashKey Chain, the webhook fires, your order settles, and a receipt with an on-chain transaction reference appears.
+
+```html
+<!-- Add to any webpage - that's the entire integration -->
+<div data-payport="true"></div>
+<script
+  src="http://localhost:3001/sdk/payport.js"
+  data-app-key="your_app_key"
+  data-amount="25.00"
+  data-token="USDC"
+  data-description="Product name"
+  async
+></script>
+```
 
 ---
 
-## Dashboard Walkthrough
-
-### Dashboard Overview
+## Dashboard
 
 ![Dashboard Overview](images/04-dashboard-overview.png)
 
-The dashboard is the merchant operations console. It shows live mode status, stream health, order totals, payment lifecycle state, activity feed, and settlement receipts.
+The dashboard is the merchant control surface. It shows live mode status, stream health, order totals, payment lifecycle state, activity feed, and settlement receipts. Everything updates in real time through SSE via [`usePaymentStream`](frontend/hooks/usePaymentStream.ts), which listens to `/api/stream?key=` and pushes `order.created`, `order.updated`, and `event.log` events into the UI without polling.
 
 ### Onboarding and Merchant Registration
 
 ![Onboarding Start](images/02-onboard-start.png)
 ![Onboarding Connected](images/03-onboard-connected.png)
 
-This flow establishes merchant context, wallet identity, and app-key provisioning.
+The onboarding flow establishes wallet identity, runs the KYC SBT check via [`kyc.js`](backend/lib/kyc.js), and provisions an `x-app-key`. In production mode, `isHuman()` is called on the [deployed MockKycSBT contract](https://testnet-explorer.hsk.xyz/address/0xbCcec0676BE0C5C40927389F193DF38Dc1be473C) to verify the wallet holds an APPROVED credential at BASIC level or above. If the check fails, registration is rejected. `DEV_BYPASS_KYC=true` skips this for demo speed.
 
 ### SDK Integration Paths
 
 ![SDK Script Tab](images/05-sdk-script-tab.png)
 ![SDK REST Tab](images/06-sdk-rest-tab.png)
 
-Merchants can integrate through a one-script embed or direct REST APIs.
+Two integration paths. The **Script Tag** is for websites: drop it into any page and a checkout button renders automatically. The **REST API** is for backends and AI agents that need to create payment links programmatically. Both are shown in the dashboard with copyable snippets.
+
+```sh
+# REST API path — create a payment link from any backend or agent
+curl -X POST http://localhost:3001/api/payment/create \
+  -H "Content-Type: application/json" \
+  -H "x-app-key: your_app_key" \
+  -d '{"amount":"5.00","token":"USDC","description":"Service fee"}'
+```
 
 ### Checkout and Settlement Proof
 
@@ -65,205 +72,182 @@ Merchants can integrate through a one-script embed or direct REST APIs.
 ![Receipt Modal](images/10-receipt-modal.png)
 ![Explorer Proof](images/11-explorer-proof.png)
 
-This sequence proves storefront checkout handoff, provider progression, dashboard reconciliation, receipt generation, and explorer-level settlement evidence.
+This sequence shows the full path: storefront checkout button (rendered by `payport.js`), HP2 checkout popup at `merchant-qa.hashkeymerchant.com`, dashboard reconciliation via webhook + SSE, receipt modal with settlement metadata, and explorer-level on-chain proof. The tx hash in the receipt matches the explorer transaction.
 
-### Failure-Handling Proof
+### Failure Diagnostics
 
 ![Status Failure Diagnostics](images/12-status-failure-diagnostics.png)
 
-PayPort surfaces provider-level diagnostics through `/api/payment/status/:paymentRequestId`, including `providerStatus` and `failureReason`, then reconciles this state back into merchant operations. This is built for production debugging, not just happy-path demos.
+PayPort surfaces provider-level diagnostics through `/api/payment/status/:paymentRequestId`, including `providerStatus` and `failureReason`. The [`reconcileOrderFromHp2`](backend/routes/payment.js) function cross-checks internal state against the HP2 provider on every status request, so the dashboard always reflects the real state, not a stale cache.
 
 ---
 
-## Architecture
+## What's Built
 
-```mermaid
-flowchart TD
-		A[Customer Browser] --> B[payport.js SDK]
-		B --> C[Backend API - Express + SQLite]
-		C --> D[KYC Check Path]
-		C --> E[HP2 Create and Status APIs]
-		C --> F[Webhook Verification]
-		C --> G[SSE Broadcaster]
-		G --> H[Frontend Dashboard - Next.js]
-```
+This is a full-stack hackathon project with all layers integrated end to end. The SDK talks to the backend, the backend talks to HP2, webhooks settle orders, and the dashboard streams everything live.
+
+| Layer              | What                                                                         | Why It Matters                                   |
+| ------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------ |
+| payport.js SDK     | Drop-in JS widget, popup checkout, postMessage callback                      | Merchants integrate without touching the HP2 API |
+| Backend API        | Node.js + Express + SQLite, HP2 Cart Mandate signing, webhook verification   | All HP2 complexity is abstracted                 |
+| Merchant Dashboard | Next.js 14, Wagmi v2, SSE live updates                                       | Real-time ops visibility                         |
+| KYC Contract       | MockKycSBT on HashKey Testnet (`0xbCcec0676BE0C5C40927389F193DF38Dc1be473C`) | On-chain compliance gate                         |
+| HP2 Integration    | Cart Mandate JWT (ES256K), HMAC-SHA256, real webhook settlement              | Live against merchant-qa.hashkeymerchant.com     |
 
 ---
 
-## Hackathon Fit
+## HP2 Integration
 
-- Hackathon: HashKey Chain Horizon Hackathon
-- Track: PayFi
-- Chain: HashKey Chain Testnet (`chainId=133`)
-- Payment rail: HP2
-- Compliance anchor: KYC SBT check path in onboarding
-- Verifiable output: explorer-linked settlement proof and event-backed status logs
+PayPort is registered on the HashKey Merchant QA platform as ArthFi (Merchant ID: 01468340) on hashkey-testnet. Payment orders are created via `POST /api/v1/merchant/orders` with a Cart Mandate JWT signed using ES256K secp256k1 (see [`mandate.js`](backend/lib/mandate.js)). The signing flow builds a canonical JSON cart, SHA-256 hashes it, constructs JWT claims with the cart hash, and signs with `@noble/curves/secp256k1`. Incoming webhooks are verified with HMAC-SHA256 using `timingSafeEqual` in [`webhook.js`](backend/routes/webhook.js) before any order state changes. All 7 HP2 payment states are handled: `payment-required`, `payment-submitted`, `payment-verified`, `payment-processing`, `payment-safe`, `payment-included`, `payment-successful`, plus `payment-failed`.
+
+| Detail      | Value                                                                                                |
+| ----------- | ---------------------------------------------------------------------------------------------------- |
+| Merchant    | ArthFi (ID: 01468340)                                                                                |
+| Environment | merchant-qa.hashkeymerchant.com                                                                      |
+| Tokens      | USDC `0x8FE3cB719Ee4410E236Cd6b72ab1fCDC06eF53c6`, USDT `0x372325443233fEbaC1F6998aC750276468c83CC6` |
+| Chain       | HashKey Chain Testnet (chainId: 133)                                                                 |
+| Auth        | ES256K Cart Mandate JWT + HMAC-SHA256                                                                |
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js 20+
-- npm 10+
-- PowerShell
-- ngrok (required for live HP2 webhook callback)
-- Foundry (optional, only for contracts)
-
-### 1. Install dependencies
-
-```powershell
-cd backend
-npm install
-
-cd ..\frontend
-npm install
-```
-
-### 2. Configure environment files
-
-```powershell
-cd ..\backend
-Copy-Item .env.example .env
-
-cd ..\frontend
-Copy-Item .env.example .env.local
-```
-
-Required in `backend/.env`:
-
-- `MERCHANT_PRIVATE_KEY` as 32-byte hex (`0x...`)
-- `HP2_MOCK=false`
-- `HP2_APP_KEY` set
-- `HP2_APP_SECRET` set
-
-Live mode values:
+### Requirements
 
 ```text
+Node.js 20+
+npm 10+
+ngrok (for HP2 webhook callbacks in live mode)
+Foundry (optional, contracts only)
+```
+
+### Setup
+
+**Step 1 - Install:**
+
+```sh
+cd backend && npm install
+cd ../frontend && npm install
+```
+
+**Step 2 - Configure:**
+
+Copy `.env.example` to `.env` in both `backend/` and `frontend/`.
+
+Required backend env vars:
+
+```text
+MERCHANT_PRIVATE_KEY=0x<your-32-byte-key>
 HP2_BASE_URL=https://merchant-qa.hashkeymerchant.com
-ENABLE_SIMULATE_ENDPOINT=false
+HP2_APP_KEY=<from HashKey console>
+HP2_APP_SECRET=<from HashKey console>
 HP2_WEBHOOK_URL=https://<your-ngrok-domain>/api/webhook
+HP2_MOCK=false
+ENABLE_SIMULATE_ENDPOINT=false
 ```
 
-Simulation mode values:
-
-```text
-HP2_BASE_URL=http://localhost:3002
-ENABLE_SIMULATE_ENDPOINT=true
-```
-
-### 3. Start the app
-
-Live mode:
+**Step 3 - Start (Windows):**
 
 ```powershell
+# Live mode - real HP2, no simulator
 cd backend
 powershell -File sim\start-live.ps1
-```
 
-Simulation mode:
-
-```powershell
+# Sim mode - local HP2 simulator for dev
 cd backend
 powershell -File sim\start-sim.ps1
 ```
 
-Stop all:
+**Step 4 - Open:**
 
-```powershell
-cd backend
-powershell -File sim\stop-all.ps1
+```text
+Demo store:   http://localhost:3001/demo
+Dashboard:    http://localhost:3000/dashboard
+Onboarding:   http://localhost:3000/onboard
+Health:       http://localhost:3001/api/health
 ```
 
-### 4. Open URLs
+### MetaMask (for real payments)
 
-- Demo Store: `http://localhost:3001/demo`
-- Dashboard: `http://localhost:3000/dashboard`
-- Onboarding: `http://localhost:3000/onboard`
-- Health: `http://localhost:3001/api/health`
+| Setting      | Value                            |
+| ------------ | -------------------------------- |
+| Network Name | HashKey Chain Testnet            |
+| RPC URL      | https://testnet.hsk.xyz          |
+| Chain ID     | 133                              |
+| Symbol       | HSK                              |
+| Explorer     | https://testnet-explorer.hsk.xyz |
 
-### 5. Verify runtime mode
-
-```powershell
-Invoke-RestMethod http://localhost:3001/api/health | ConvertTo-Json -Depth 5
-```
-
-Live mode expected:
-
-- `liveMode: "true"`
-- `simulateEnabled: "false"`
-- `mockMode: "false"`
+Get testnet HSK from [faucet.hsk.xyz](https://faucet.hsk.xyz). For testnet USDC, contact hsp_hackathon@hashkey.com.
 
 ---
 
-## API Surface
+## API Reference
 
-| Method | Endpoint                                  | Auth               | Purpose                    |
-| ------ | ----------------------------------------- | ------------------ | -------------------------- |
-| POST   | `/api/merchant/register`                  | none               | Register merchant wallet   |
-| GET    | `/api/merchant/me`                        | `x-app-key`        | Fetch merchant profile     |
-| POST   | `/api/payment/create`                     | `x-app-key`        | Create payment order       |
-| GET    | `/api/payment/status/:paymentRequestId`   | `x-app-key`        | Reconciled payment status  |
-| GET    | `/api/payment/orders`                     | `x-app-key`        | Orders and recent events   |
-| POST   | `/api/webhook`                            | provider signature | HP2 webhook callback       |
-| POST   | `/api/webhook/simulate/:paymentRequestId` | `x-app-key`        | Simulation settle endpoint |
-| GET    | `/api/stream?key=<appKey>`                | query key          | SSE stream                 |
-| GET    | `/api/health`                             | none               | Runtime mode and health    |
+| Method | Path                      | Auth          | Purpose                           |
+| ------ | ------------------------- | ------------- | --------------------------------- |
+| POST   | `/api/merchant/register`  | none          | Register wallet, get app key      |
+| GET    | `/api/merchant/me`        | x-app-key     | Merchant profile                  |
+| POST   | `/api/payment/create`     | x-app-key     | Create HP2 payment order          |
+| GET    | `/api/payment/status/:id` | x-app-key     | Payment status and provider state |
+| GET    | `/api/payment/orders`     | x-app-key     | Order list and event log          |
+| POST   | `/api/webhook`            | HP2 signature | HP2 settlement callback           |
+| GET    | `/api/stream?key=`        | query key     | SSE live updates                  |
 
 ---
 
 ## Repository Structure
 
 ```text
-hsp2/
-	backend/
-		constants.js
-		db.js
-		server.js
-		routes/
-		lib/
-		sim/
-		public/
-	frontend/
-		app/
-		components/
-		hooks/
-		lib/
-	contracts/
-		src/
-		script/
-		test/
-	images/
+payport/
+  backend/
+    lib/          hp2.js, mandate.js, kyc.js
+    routes/       merchant, payment, webhook, stream
+    sim/          hp2-sim.js, start-live.ps1, start-sim.ps1
+    public/
+      sdk/        payport.js
+      demo/       index.html
+  frontend/
+    app/          onboard, dashboard, mock-payment
+    components/   StatsBar, OrdersTable, PaymentLog, ReceiptModal
+    hooks/        usePaymentStream
+  contracts/
+    src/          MockKycSBT.sol
+    test/         MockKycSBT.t.sol
 ```
 
 ---
 
-## Contracts
+## Smart Contracts
 
-From `contracts/`:
+MockKycSBT is a Soul Bound Token contract that gates merchant registration. Only wallets holding this non-transferable credential (status `APPROVED`, level `BASIC`+) can receive a PayPort API key. The contract exposes `isHuman(address)` for the boolean gate and `getKycInfo(address)` for full credential details. Users can self-register with `requestKyc()` by paying 0.001 HSK.
 
-```powershell
-forge build
+|          |                                                                                                                 |
+| -------- | --------------------------------------------------------------------------------------------------------------- |
+| Contract | MockKycSBT                                                                                                      |
+| Network  | HashKey Chain Testnet                                                                                           |
+| Address  | `0xbCcec0676BE0C5C40927389F193DF38Dc1be473C`                                                                    |
+| Explorer | [View on testnet explorer](https://testnet-explorer.hsk.xyz/address/0xbCcec0676BE0C5C40927389F193DF38Dc1be473C) |
+
+```sh
+# Run tests
+cd contracts
 forge test -vvv
 ```
 
-Network config uses HashKey testnet RPC: `https://testnet.hsk.xyz`.
-
 ---
 
-## Security Notes
+## Security
 
-- Webhook signatures are verified in non-mock HP2 mode
-- Merchant APIs are scoped by app key
-- Rate limiting is enabled on registration and payment creation
-- Simulation endpoint should remain disabled in live demos
+- **Webhook verification** - Every HP2 callback is verified with HMAC-SHA256 before any order state changes. Forged webhooks are rejected with 200 (to suppress HP2 retries) but not processed.
+
+- **CORS restriction** - The backend allows requests only from localhost:3000, localhost:3001, and the configured ngrok domain. The webhook route is the only exception (accepts HP2 server IPs).
+
+- **Rate limiting** - Merchant registration: 10 requests/IP/hour. Payment creation: 60 requests/IP/minute. Both enforced in-process.
+
+- **Simulation gating** - The settlement simulation endpoint returns 403 by default. Enable only via `ENABLE_SIMULATE_ENDPOINT=true` in development environments.
 
 ---
 
 ## Team
 
-- [Arshdeep Singh](https://github.com/arshlabs)
-- [Parth Singh](https://github.com/parthsinghps)
-
-Built for HashKey Chain Horizon Hackathon.
+Built by [Arshdeep Singh](https://github.com/arshlabs) and [Parth Singh](https://github.com/parthsinghps) for [HashKey Chain Horizon Hackathon 2026](https://dorahacks.io/hackathon/2045).
